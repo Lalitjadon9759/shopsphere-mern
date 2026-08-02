@@ -1,6 +1,9 @@
 const express = require("express");
-const auth=require("../middleware/authentication")
-const rolecheck=require("../middleware/authorization")
+
+const router = express.Router();
+
+const auth = require("../middleware/authentication");
+const rolecheck = require("../middleware/authorization");
 
 const {
     createOrder,
@@ -10,16 +13,14 @@ const {
     deleteOrder
 } = require("../controllers/orderController");
 
-const router = express.Router();
+router.post("/", auth, rolecheck("admin"), createOrder);
 
-router.post("/",auth,rolecheck, createOrder);
+router.get("/", auth, rolecheck("admin"), getOrders);
 
-router.get("/",auth,rolecheck, getOrders);
+router.get("/:id", auth, getOrderById);
 
-router.get("/:id", auth,getOrderById);
+router.patch("/:id", auth, rolecheck("admin"), updateOrder);
 
-router.patch("/:id",auth,rolecheck, updateOrder);
-
-router.delete("/:id", auth,rolecheck, deleteOrder);
+router.delete("/:id", auth, rolecheck("admin"), deleteOrder);
 
 module.exports = router;

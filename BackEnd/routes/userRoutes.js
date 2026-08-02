@@ -1,13 +1,26 @@
-const express=require("express");
-const userRouter=express.Router();
-const {getUser,getUserById,createUser,updateUser,deleteUser}=require("../controllers/userController")
-const auth =require("../middleware/authentication")
-const rolecheck=require("../middleware/authorization")
+const express = require("express");
 
-userRouter.get('/',auth,getUser)
-userRouter.get("/:id",auth,getUserById);
-userRouter.post('/',auth,createUser);
-userRouter.patch('/:id',auth,rolecheck,updateUser);
-userRouter.delete("/:id",auth,rolecheck,deleteUser);
+const router = express.Router();
 
-module.exports=userRouter;
+const auth = require("../middleware/authentication");
+const rolecheck = require("../middleware/authorization");
+
+const {
+    createUser,
+    getUser,
+    getUserById,
+    updateUser,
+    deleteUser
+} = require("../controllers/userController");
+
+router.get("/", auth, getUser);
+
+router.get("/:id", auth, getUserById);
+
+router.post("/", auth, createUser);
+
+router.patch("/:id", auth, rolecheck("admin"), updateUser);
+
+router.delete("/:id", auth, rolecheck("admin"), deleteUser);
+
+module.exports = router;

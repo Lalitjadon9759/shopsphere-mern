@@ -1,20 +1,26 @@
-const express=require("express")
-const app=express()
-const userRouter =require("./routes/userRoutes")
-const router=require("./routes/orderRoutes")
-const authrouter=require("./routes/authRoutes")
+const express = require("express");
+const dotenv = require("dotenv");
+
+dotenv.config();
+
+const connectToDb = require("./config/db");
+
+const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const orderRoutes = require("./routes/orderRoutes");
+
+const app = express();
+
 app.use(express.json());
 
-require("dotenv").config()
+connectToDb();
 
+app.use("/", authRoutes);
+app.use("/users", userRoutes);
+app.use("/orders", orderRoutes);
 
-const connectToDb =require("./config/db")
-connectToDb()
+const PORT = process.env.PORT || 3000;
 
-app.use("/",authrouter)
-app.use("/users",userRouter);
-app.use("/order",router);
-const port=process.env.PORT || 3000
-app.listen(port,()=>{
-   console.log(`server is running on port ${port}`)
-}) 
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});

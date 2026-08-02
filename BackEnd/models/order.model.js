@@ -1,14 +1,31 @@
-const mongoose=require("mongoose");
+const mongoose = require("mongoose");
 
-const authSchema=new mongoose.Schema({
-    name:{type:String,required:true},
-    email:{type:String,required:true,unique:true},
-    password:{type:String,required:true,default:"123456"},
-        role:{
-        type:String
-    
+const orderSchema = new mongoose.Schema(
+    {
+        orderName: {
+            type: String,
+            required: true
+        },
+        orderAmount: {
+            type: Number,
+            required: true
+        },
+        deliveryStatus: {
+            type: Boolean,
+            default: false
+        },
+        modeOfPayment: {
+            type: String,
+            enum: ["cod", "upi"]
+        },
+        orderedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        }
+    },
+    {
+        timestamps: true
     }
-})
+);
 
-const authModel=mongoose.model("AuthUser",authSchema);
-module.exports=authModel;
+module.exports = mongoose.model("Order", orderSchema);
