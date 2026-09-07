@@ -78,21 +78,26 @@ const addressSchema = new mongoose.Schema(
   }
 );
 
-// A user can have only one default address
-addressSchema.pre("save", async function (next) {
-  if (this.isDefault) {
-    await this.constructor.updateMany(
-      {
-        user: this.user,
-        _id: { $ne: this._id },
-      },
-      {
-        isDefault: false,
-      }
-    );
+// ======================================================
+// Keep only one default address per user
+// ======================================================
+
+addressSchema.pre("save", async function () {
+  if (!this.isDefault) {
+    return;
   }
 
-  next();
+  await this.constructor.updateMany(
+    {
+      user: this.user,
+      _id: { $ne: this._id },
+    },
+    {
+      $set: {
+        isDefault: false,
+      },
+    }
+  );
 });
 
 module.exports = mongoose.model("Address", addressSchema);

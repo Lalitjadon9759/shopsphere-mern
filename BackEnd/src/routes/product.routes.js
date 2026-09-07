@@ -2,47 +2,99 @@ const express = require("express");
 
 const router = express.Router();
 
+// ======================================================
+// Middleware
+// ======================================================
+
 const auth = require("../middleware/auth");
 const roleCheck = require("../middleware/roleCheck");
 const upload = require("../middleware/upload");
+
+// ======================================================
+// Controllers
+// ======================================================
 
 const {
   createProduct,
   updateProduct,
   deleteProduct,
   getProducts,
+  getProductById,
   getProductBySlug,
   getFeaturedProducts,
   getRelatedProducts,
 } = require("../controllers/product.controller");
 
-// ==================== Public Routes ====================
+// ======================================================
+// PUBLIC PRODUCT ROUTES
+// ======================================================
 
-// Get all products
+// ------------------------------------------------------
+// Get All Products
+// ------------------------------------------------------
 // Supports:
+//
 // ?page=1
-// ?limit=10
+// ?limit=8
 // ?search=iphone
-// ?category=<categoryId>
+// ?category=categoryId
 // ?minPrice=100
-// ?maxPrice=500
+// ?maxPrice=5000
+// ?sort=latest
+// ?sort=oldest
 // ?sort=price_asc
 // ?sort=price_desc
-// ?sort=latest
+// ?sort=rating
+// ?sort=name
+//
+// Example:
+// GET /api/products
+// GET /api/products?search=iphone
+// GET /api/products?category=electronics
+// GET /api/products?search=iphone&sort=price_asc
+// ------------------------------------------------------
+
 router.get("/", getProducts);
 
-// Featured products
+// ------------------------------------------------------
+// Featured Products
+// ------------------------------------------------------
+// GET /api/products/featured
+// ------------------------------------------------------
+
 router.get("/featured", getFeaturedProducts);
 
-// Related products
+// ------------------------------------------------------
+// Related Products
+// ------------------------------------------------------
+// GET /api/products/related/:id
+// ------------------------------------------------------
+
 router.get("/related/:id", getRelatedProducts);
 
-// Single product by slug
-router.get("/:slug", getProductBySlug);
+// ======================================================
+// ADMIN PRODUCT ROUTES
+// ======================================================
 
-// ==================== Admin Routes ====================
+// ------------------------------------------------------
+// Get Product By ID - Admin
+// ------------------------------------------------------
+// GET /api/products/admin/:id
+// ------------------------------------------------------
 
+router.get(
+  "/admin/:id",
+  auth,
+  roleCheck("admin"),
+  getProductById
+);
+
+// ------------------------------------------------------
 // Create Product
+// ------------------------------------------------------
+// POST /api/products
+// ------------------------------------------------------
+
 router.post(
   "/",
   auth,
@@ -51,7 +103,12 @@ router.post(
   createProduct
 );
 
+// ------------------------------------------------------
 // Update Product
+// ------------------------------------------------------
+// PUT /api/products/:id
+// ------------------------------------------------------
+
 router.put(
   "/:id",
   auth,
@@ -60,12 +117,33 @@ router.put(
   updateProduct
 );
 
+// ------------------------------------------------------
 // Delete Product
+// ------------------------------------------------------
+// DELETE /api/products/:id
+// ------------------------------------------------------
+
 router.delete(
   "/:id",
   auth,
   roleCheck("admin"),
   deleteProduct
 );
+
+// ======================================================
+// GET PRODUCT BY SLUG
+// ======================================================
+// IMPORTANT:
+// Keep this dynamic route LAST.
+//
+// GET /api/products/iphone-15
+// GET /api/products/samsung-galaxy-s24
+// ======================================================
+
+router.get("/:slug", getProductBySlug);
+
+// ======================================================
+// EXPORT
+// ======================================================
 
 module.exports = router;

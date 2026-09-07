@@ -18,6 +18,7 @@ const cartItemSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: true,
+      min: 0,
     },
   },
   {
@@ -34,16 +35,21 @@ const cartSchema = new mongoose.Schema(
       unique: true,
     },
 
-    items: [cartItemSchema],
+    items: {
+      type: [cartItemSchema],
+      default: [],
+    },
 
     totalItems: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
     totalPrice: {
       type: Number,
       default: 0,
+      min: 0,
     },
   },
   {
@@ -51,19 +57,22 @@ const cartSchema = new mongoose.Schema(
   }
 );
 
-// Calculate totals before saving
-cartSchema.pre("save", function (next) {
+// ======================================================
+// Calculate Cart Totals
+// ======================================================
+
+cartSchema.pre("save", function () {
   this.totalItems = this.items.reduce(
-    (total, item) => total + item.quantity,
+    (total, item) => total + Number(item.quantity || 0),
     0
   );
 
   this.totalPrice = this.items.reduce(
-    (total, item) => total + item.quantity * item.price,
+    (total, item) =>
+      total +
+      Number(item.quantity || 0) * Number(item.price || 0),
     0
   );
-
-  next();
 });
 
 module.exports = mongoose.model("Cart", cartSchema);

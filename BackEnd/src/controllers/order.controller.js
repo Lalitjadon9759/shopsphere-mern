@@ -10,21 +10,42 @@ const Coupon = require("../models/coupon.model");
 
 exports.createOrder = async (req, res) => {
   try {
-    const { shippingAddress, paymentMethod, couponCode } = req.body;
+    const {
+      shippingAddress,
+      paymentMethod,
+      couponCode,
+    } = req.body;
 
+    // ==================================================
+    // Validate Payment Method
+    // ==================================================
+
+    if (!["COD", "ONLINE"].includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment method",
+      });
+    }
+
+    // ==================================================
     // Get User Cart
-    const cart = await Cart.findOne({ user: req.user.id }).populate(
-      "items.product"
-    );
+    // ==================================================
 
-    if (!cart || cart.items.length === 0) {
+    const cart = await Cart.findOne({
+      user: req.user.id,
+    }).populate("items.product");
+
+    if (!cart || !cart.items || cart.items.length === 0) {
       return res.status(400).json({
         success: false,
         message: "Cart is empty",
       });
     }
 
+    // ==================================================
     // Validate Address
+    // ==================================================
+
     const address = await Address.findOne({
       _id: shippingAddress,
       user: req.user.id,
@@ -37,48 +58,70 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    let orderItems = [];
-    let subtotal = 0;
+    // ==================================================
+    // Validate Products + Stock
+    // ==================================================
 
-    // Validate Products & Stock
+    const orderItems = [];
+
+    let subtotal = 0;
+    let totalItems = 0;
+
     for (const item of cart.items) {
       const product = await Product.findById(item.product._id);
 
       if (!product || !product.isActive) {
         return res.status(404).json({
           success: false,
-          message: `${item.product.name} is unavailable`,
+          message: `${item.product?.name || "Product"} is unavailable`,
         });
       }
 
       if (product.stock < item.quantity) {
         return res.status(400).json({
           success: false,
-          message: `${product.name} is out of stock`,
+          message: `${product.name} does not have enough stock`,
         });
       }
 
-      const itemSubtotal = item.quantity * product.price;
+      // Use discount price if available
+      const itemPrice =
+        product.discountPrice > 0 &&
+        product.discountPrice < product.price
+          ? product.discountPrice
+          : product.price;
+
+      const itemSubtotal = item.quantity * itemPrice;
 
       subtotal += itemSubtotal;
+
+      totalItems += Number(item.quantity);
 
       orderItems.push({
         product: product._id,
         name: product.name,
+
         image:
-          product.images.length > 0
+          product.images?.length > 0
             ? product.images[0].url
             : "",
+
         quantity: item.quantity,
-        price: product.price,
+        price: itemPrice,
         subtotal: itemSubtotal,
       });
     }
 
-    // Shipping Charge
-    let shippingCharge = subtotal >= 999 ? 0 : 99;
+    // ==================================================
+    // Shipping
+    // ==================================================
 
+    const shippingCharge = subtotal >= 999 ? 0 : 99;
+
+    // ==================================================
     // Coupon
+    // ==================================================
+
     let discount = 0;
     let couponId = null;
 
@@ -98,8 +141,8 @@ exports.createOrder = async (req, res) => {
       const now = new Date();
 
       if (
-        now < coupon.validFrom ||
-        now > coupon.validTill
+        (coupon.validFrom && now < coupon.validFrom) ||
+        (coupon.validTill && now > coupon.validTill)
       ) {
         return res.status(400).json({
           success: false,
@@ -141,30 +184,55 @@ exports.createOrder = async (req, res) => {
         discount = coupon.discountValue;
       }
 
+      // Never allow discount greater than subtotal
+      discount = Math.min(discount, subtotal);
+
       coupon.usedCount += 1;
+
       await coupon.save();
 
       couponId = coupon._id;
     }
 
-    const totalAmount =
-      subtotal + shippingCharge - discount;
+    // ==================================================
+    // Final Server-Side Total
+    // ==================================================
 
+    const totalAmount = Math.max(
+      0,
+      subtotal + shippingCharge - discount
+    );
+
+    // ==================================================
     // Create Order
+    // ==================================================
+
     const order = await Order.create({
       user: req.user.id,
+
       items: orderItems,
-      shippingAddress,
+
+      shippingAddress: address._id,
+
       paymentMethod,
-      totalItems: orderItems.length,
+
+      totalItems,
+
       subtotal,
+
       shippingCharge,
+
       discount,
+
       totalAmount,
+
       coupon: couponId,
     });
 
+    // ==================================================
     // Update Stock
+    // ==================================================
+
     for (const item of orderItems) {
       await Product.findByIdAndUpdate(item.product, {
         $inc: {
@@ -174,90 +242,77 @@ exports.createOrder = async (req, res) => {
       });
     }
 
+    // ==================================================
     // Clear Cart
+    // ==================================================
+
     cart.items = [];
     cart.totalItems = 0;
     cart.totalPrice = 0;
 
     await cart.save();
 
+    // ==================================================
+    // Return Complete Order
+    // ==================================================
+
     const createdOrder = await Order.findById(order._id)
       .populate("user", "name email")
-      .populate("shippingAddress");
+      .populate("shippingAddress")
+      .populate("items.product");
 
     return res.status(201).json({
       success: true,
       message: "Order placed successfully",
       order: createdOrder,
     });
-
   } catch (error) {
+    console.error("Create Order Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to create order",
     });
   }
 };
+
 // ======================================================
-// Get All Orders (Admin)
+// Get All Orders - ADMIN
 // ======================================================
 
 exports.getOrders = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      status,
-      paymentStatus,
-    } = req.query;
-
-    const query = {};
-
-    if (status) {
-      query.orderStatus = status;
-    }
-
-    if (paymentStatus) {
-      query.paymentStatus = paymentStatus;
-    }
-
-    const totalOrders = await Order.countDocuments(query);
-
-    const orders = await Order.find(query)
-      .populate("user", "name email phone")
+    const orders = await Order.find()
+      .populate("user", "name email")
       .populate("shippingAddress")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * Number(limit))
-      .limit(Number(limit));
+      .populate("items.product")
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
-      currentPage: Number(page),
-      totalPages: Math.ceil(totalOrders / Number(limit)),
-      totalOrders,
+      count: orders.length,
       orders,
     });
-
   } catch (error) {
+    console.error("Get Orders Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to fetch orders",
     });
   }
 };
 
 // ======================================================
-// Get Order By ID (Admin)
+// Get Single Order
 // ======================================================
 
 exports.getOrderById = async (req, res) => {
   try {
-
     const order = await Order.findById(req.params.id)
-      .populate("user", "name email phone")
-      .populate("items.product")
+      .populate("user", "name email")
       .populate("shippingAddress")
-      .populate("coupon");
+      .populate("items.product");
 
     if (!order) {
       return res.status(404).json({
@@ -266,15 +321,28 @@ exports.getOrderById = async (req, res) => {
       });
     }
 
+    // User can only see their own order
+    // Admin can see any order
+    if (
+      order.user._id.toString() !== req.user.id.toString() &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
     return res.status(200).json({
       success: true,
       order,
     });
-
   } catch (error) {
+    console.error("Get Order By ID Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to fetch order",
     });
   }
 };
@@ -285,39 +353,54 @@ exports.getOrderById = async (req, res) => {
 
 exports.getMyOrders = async (req, res) => {
   try {
-
     const orders = await Order.find({
       user: req.user.id,
     })
       .populate("shippingAddress")
-      .sort({
-        createdAt: -1,
-      });
+      .populate("items.product")
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       count: orders.length,
       orders,
     });
-
   } catch (error) {
+    console.error("Get My Orders Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to fetch your orders",
     });
   }
 };
 
 // ======================================================
-// Update Order Status (Admin)
+// Update Order Status - ADMIN
 // ======================================================
 
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { orderStatus, paymentStatus } = req.body;
+    const { status } = req.body;
 
-    const order = await Order.findById(id);
+    const allowedStatuses = [
+      "Pending",
+      "Confirmed",
+      "Packed",
+      "Shipped",
+      "Out for Delivery",
+      "Delivered",
+      "Cancelled",
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid order status",
+      });
+    }
+
+    const order = await Order.findById(req.params.id);
 
     if (!order) {
       return res.status(404).json({
@@ -326,56 +409,47 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    if (orderStatus) {
-      order.orderStatus = orderStatus;
+    order.orderStatus = status;
 
-      if (orderStatus === "Delivered") {
-        order.deliveredAt = new Date();
-
-        if (order.paymentMethod === "COD") {
-          order.paymentStatus = "Paid";
-        }
-      }
-
-      if (orderStatus === "Cancelled") {
-        order.cancelledAt = new Date();
-      }
+    if (status === "Delivered") {
+      order.deliveredAt = new Date();
     }
 
-    if (paymentStatus) {
-      order.paymentStatus = paymentStatus;
+    if (status === "Cancelled") {
+      order.cancelledAt = new Date();
     }
 
     await order.save();
 
     const updatedOrder = await Order.findById(order._id)
       .populate("user", "name email")
-      .populate("shippingAddress");
+      .populate("shippingAddress")
+      .populate("items.product");
 
     return res.status(200).json({
       success: true,
-      message: "Order updated successfully",
+      message: "Order status updated successfully",
       order: updatedOrder,
     });
-
   } catch (error) {
+    console.error("Update Order Status Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        error.message || "Failed to update order status",
     });
   }
 };
 
 // ======================================================
-// Cancel Order (User)
+// Cancel Order - USER
 // ======================================================
 
 exports.cancelOrder = async (req, res) => {
   try {
-    const { id } = req.params;
-
     const order = await Order.findOne({
-      _id: id,
+      _id: req.params.id,
       user: req.user.id,
     });
 
@@ -387,16 +461,17 @@ exports.cancelOrder = async (req, res) => {
     }
 
     if (
-      order.orderStatus === "Delivered" ||
-      order.orderStatus === "Cancelled"
+      ["Shipped", "Out for Delivery", "Delivered", "Cancelled"].includes(
+        order.orderStatus
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: `Order already ${order.orderStatus}`,
+        message: `Order cannot be cancelled because it is ${order.orderStatus}`,
       });
     }
 
-    // Restore stock
+    // Restore product stock
     for (const item of order.items) {
       await Product.findByIdAndUpdate(item.product, {
         $inc: {
@@ -405,11 +480,6 @@ exports.cancelOrder = async (req, res) => {
         },
       });
     }
-    if (order.coupon) {
-  await Coupon.findByIdAndUpdate(order.coupon, {
-    $inc: { usedCount: -1 },
-  });
-}
 
     order.orderStatus = "Cancelled";
     order.cancelledAt = new Date();
@@ -421,17 +491,18 @@ exports.cancelOrder = async (req, res) => {
       message: "Order cancelled successfully",
       order,
     });
-
   } catch (error) {
+    console.error("Cancel Order Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to cancel order",
     });
   }
 };
 
 // ======================================================
-// Delete Order (Admin)
+// Delete Order - ADMIN
 // ======================================================
 
 exports.deleteOrder = async (req, res) => {
@@ -445,17 +516,18 @@ exports.deleteOrder = async (req, res) => {
       });
     }
 
-    await order.deleteOne();
+    await Order.findByIdAndDelete(req.params.id);
 
     return res.status(200).json({
       success: true,
       message: "Order deleted successfully",
     });
-
   } catch (error) {
+    console.error("Delete Order Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to delete order",
     });
   }
 };

@@ -15,7 +15,9 @@ const {
   deleteOrder,
 } = require("../controllers/order.controller");
 
-// ===================== USER ROUTES =====================
+// ======================================================
+// USER ROUTES
+// ======================================================
 
 // Place Order
 router.post("/", auth, createOrder);
@@ -26,15 +28,17 @@ router.get("/my-orders", auth, getMyOrders);
 // Cancel Order
 router.patch("/cancel/:id", auth, cancelOrder);
 
-// ===================== ADMIN ROUTES =====================
+// ======================================================
+// ADMIN ROUTES
+// ======================================================
 
-// All Orders
+// Get all orders
 router.get("/", auth, roleCheck("admin"), getOrders);
 
-// Single Order
-router.get("/:id", auth, roleCheck("admin"), getOrderById);
+// Get single order
+router.get("/:id", auth, getOrderById);
 
-// Update Order Status
+// Update order status
 router.patch(
   "/:id/status",
   auth,
@@ -42,7 +46,7 @@ router.patch(
   updateOrderStatus
 );
 
-// Delete Order
+// Delete order
 router.delete(
   "/:id",
   auth,
