@@ -3,12 +3,17 @@ import { useForm } from "react-hook-form";
 import { Eye, EyeOff, ShoppingBag } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { login, clearError } from "../../features/auth/authSlice";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import toast from "react-hot-toast";
 
 const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { loading, error, isAuthenticated, user } = useSelector(
     (state) => state.auth
@@ -33,13 +38,28 @@ const Login = () => {
     if (isAuthenticated) {
       toast.success("Login Successful");
 
+      // Admin users always go to admin dashboard
       if (user?.role === "admin") {
-        navigate("/admin");
+        navigate("/admin", { replace: true });
+        return;
+      }
+
+      // Get the page the user originally wanted to visit
+      const from = location.state?.from;
+
+      if (from) {
+        const destination =
+          from.pathname +
+          (from.search || "") +
+          (from.hash || "");
+
+        navigate(destination, { replace: true });
       } else {
-        navigate("/");
+        // Normal login without a protected page
+        navigate("/", { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, location.state]);
 
   const onSubmit = (data) => {
     dispatch(login(data));
@@ -139,6 +159,7 @@ const Login = () => {
           </div>
 
           <button
+            type="submit"
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 transition disabled:opacity-50"
           >

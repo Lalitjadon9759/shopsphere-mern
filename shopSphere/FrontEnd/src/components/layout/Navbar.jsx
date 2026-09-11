@@ -24,9 +24,7 @@ import toast from "react-hot-toast";
 
 import { logout } from "../../features/auth/authSlice";
 
-import {
-  fetchWishlist,
-} from "../../features/wishlist/wishlistSlice";
+import { fetchWishlist } from "../../features/wishlist/wishlistSlice";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -49,8 +47,7 @@ const Navbar = () => {
     useSelector((state) => state.cart.cart?.items) || [];
 
   const cartCount = cartItems.reduce(
-    (total, item) =>
-      total + Number(item.quantity || 0),
+    (total, item) => total + Number(item.quantity || 0),
     0
   );
 
@@ -93,12 +90,9 @@ const Navbar = () => {
   // ======================================================
 
   useEffect(() => {
-    const params = new URLSearchParams(
-      location.search
-    );
+    const params = new URLSearchParams(location.search);
 
-    const urlSearch =
-      params.get("search") || "";
+    const urlSearch = params.get("search") || "";
 
     setSearch(urlSearch);
   }, [location.search]);
@@ -246,8 +240,16 @@ const Navbar = () => {
               DESKTOP NAVIGATION
           ================================================== */}
 
-          <nav className="hidden shrink-0 items-center gap-5 lg:flex xl:gap-7">
-
+          <nav
+            className="
+              hidden
+              shrink-0
+              items-center
+              gap-4
+              lg:flex
+              xl:gap-6
+            "
+          >
             <NavLink
               to="/"
               end
@@ -269,11 +271,10 @@ const Navbar = () => {
             >
               Categories
             </NavLink>
-
           </nav>
 
           {/* ==================================================
-              SEARCH
+              DESKTOP SEARCH
           ================================================== */}
 
           <form
@@ -285,7 +286,9 @@ const Navbar = () => {
               lg:flex
             "
           >
-            <div className="relative mx-auto w-full max-w-2xl">
+            <div className="relative w-full min-w-0">
+
+              {/* Search Icon */}
 
               <Search
                 size={18}
@@ -294,10 +297,13 @@ const Navbar = () => {
                   absolute
                   left-3.5
                   top-1/2
+                  z-10
                   -translate-y-1/2
                   text-slate-400
                 "
               />
+
+              {/* Search Input */}
 
               <input
                 type="search"
@@ -314,7 +320,7 @@ const Navbar = () => {
                   border
                   border-slate-300
                   bg-slate-50
-                  pl-10
+                  pl-11
                   pr-4
                   text-sm
                   text-slate-800
@@ -819,6 +825,7 @@ const Navbar = () => {
                   absolute
                   left-3.5
                   top-1/2
+                  z-10
                   -translate-y-1/2
                   text-slate-400
                 "
@@ -839,11 +846,14 @@ const Navbar = () => {
                   border
                   border-slate-300
                   bg-slate-50
-                  pl-10
+                  pl-11
                   pr-4
                   text-sm
+                  text-slate-800
                   outline-none
                   transition
+                  placeholder:text-slate-400
+                  hover:border-slate-400
                   focus:border-blue-500
                   focus:bg-white
                   focus:ring-4
